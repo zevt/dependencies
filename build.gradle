@@ -1,0 +1,221 @@
+buildscript {
+    ext {
+        springBootVersion = '2.1.10.RELEASE'
+    }
+    repositories {
+        mavenCentral()
+        maven {
+            def releasesRepoUrl = "https://captain.rtf.siemens.net/artifactory/mindsphere_rnd-release-maven2"
+            def snapshotsRepoUrl = "https://captain.rtf.siemens.net/artifactory/mindsphere_rnd-dev-maven2"
+            url = project.property('service.version').endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials {
+                username = "$System.env.ARTIFACTORY_USERNAME"
+                password = "$System.env.ARTIFACTORY_PASSWORD"
+            }
+            name = "Siemens Artifactory"
+        }
+
+        maven { url "http://dl.bintray.com/releashaus/release" }
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.7.3"
+        classpath "org.github.ngbinh.scalastyle:gradle-scalastyle-plugin_2.11:1.0.1"
+
+    }
+}
+
+plugins {
+    id "com.palantir.jacoco-coverage" version "0.4.0"
+    id "org.sonarqube" version "2.7.1"
+    id "org.owasp.dependencycheck" version "5.2.2"
+}
+
+apply plugin: 'idea'
+apply plugin: 'java'
+apply plugin: 'scala'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'maven-publish'
+apply plugin: "com.jfrog.artifactory"
+apply plugin: 'scalaStyle'
+apply plugin: 'com.palantir.jacoco-coverage'
+
+jacocoCoverage {
+    // Enforce minimum code coverage of 50% for every Java file.
+    fileThreshold 70
+
+    // Whitelist files named MyClass.java from coverage requirements.
+    //fileThreshold 0.0, "MyClass.java"
+}
+
+group = 'com.siemens.plm.mindsphere'
+version = project.property('service.version')
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    add buildscript.repositories.getByName("Siemens Artifactory")
+}
+
+
+dependencies {
+    //Start Fix CVE
+    compile group: 'commons-beanutils', name: 'commons-beanutils', version: '1.9.4'
+    compile group: 'com.nimbusds', name: 'nimbus-jose-jwt', version: '7.9'
+    //End Fix CVF
+
+    //Scala core library to support the file conversion process
+    compile 'org.scala-lang:scala-library:2.11.1' // scala
+    compile 'org.scalaj:scalaj-http_2.11:2.3.0'
+
+    //Spring related dependency to run the service
+    compile 'org.springframework.boot:spring-boot-devtools'
+    compile 'org.springframework.boot:spring-boot-starter-actuator'
+    compile 'org.springframework.cloud:spring-cloud-starter-sleuth:2.0.2.RELEASE'
+    compile('org.springframework.boot:spring-boot-starter-web') {
+        exclude group: 'ch.qos.logback', module: 'logback-classic'
+    }
+
+    //AWS related library for AWS cloud and EMR support.
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.11.661'
+    compile('org.apache.hadoop:hadoop-client:2.8.5') {
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        exclude group: 'log4j', module: 'log4j'
+        exclude group: 'io.netty', module: 'netty-all'
+    }
+
+    compile ('org.apache.hadoop:hadoop-aws:2.8.5') {
+        exclude group: 'io.netty', module: 'netty-all'
+    }
+    compile('org.apache.spark:spark-sql_2.11:2.4.4') {
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        exclude group: 'log4j', module: 'log4j'
+    }
+
+    //Swagger related libraries to create swagger documentation
+    compile 'io.springfox:springfox-swagger-ui:2.9.2'
+    compile 'io.springfox:springfox-swagger2:2.9.2'
+
+    //Logging related libraries
+    compile 'org.slf4j:log4j-over-slf4j:1.7.15'
+    compile 'org.slf4j:slf4j-api:1.7.15'
+    compile 'com.typesafe.scala-logging:scala-logging_2.11:3.8.0'
+
+    //CSV, JSON and XML file conversion support
+    compile group: 'au.com.bytecode', name: 'opencsv', version: '2.4'
+    compile group: 'com.databricks', name: 'spark-xml_2.11', version: '0.4.1'
+    compile group: 'com.google.code.gson', name: 'gson', version: '2.8.5'
+    compile group: 'com.google.guava', name: 'guava', version: '28.1-jre'
+    compile('com.databricks:spark-xml_2.11:0.6.0') {
+        exclude group: 'org.apache.spark', module: 'spark-core_2.11'
+        exclude group: 'org.apache.spark', module: 'spark-sql_2.11'
+        exclude group: 'org.scala-lang', module: 'scala-library'
+    }
+    compile('com.databricks:spark-xml_2.11:0.6.0') {
+        exclude group: 'org.apache.spark', module: 'spark-core_2.11'
+        exclude group: 'org.apache.spark', module: 'spark-sql_2.11'
+        exclude group: 'org.scala-lang', module: 'scala-library'
+    }
+
+    //Siemens Util Library
+    compile 'com.siemens.plm.mindsphere.edi:messaging:3.1.0-SNAPSHOT'
+    compile 'com.siemens.plm.mindsphere:logging-utils:3.1.0-SNAPSHOT'
+//    compileOnly 'org.projectlombok:lombok:1.18.10'
+//    annotationProcessor 'org.projectlombok:lombok:1.18.10'
+
+//    providedCompile group: 'org.projectlombok', name: 'lombok', version: '1.18.10'
+
+    //Testing libraries
+    compile 'com.typesafe:config:1.3.4'
+    testCompile 'org.mockito:mockito-core:2.7.22'
+    testCompile 'org.scalamock:scalamock_2.10:3.0.1'
+    testCompile 'org.scalatest:scalatest_2.11:3.0.5'
+    testCompile('org.springframework.boot:spring-boot-starter-test')
+    testRuntime 'org.scala-lang.modules:scala-xml_2.11:1.0.6'
+
+}
+
+
+jacocoTestReport {
+    afterEvaluate {
+        classDirectories = files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+
+                    '**/com/siemens/plm/mindsphere/model/**',
+                    '**/com/siemens/plm/mindsphere/common/**'
+            ])
+        })
+    }
+}
+test.finalizedBy(project.tasks.jacocoTestReport)
+
+//Start Fix CVE issues with resolutionStrategy
+
+configurations.all {
+    exclude group: 'ch.qos.logback'
+    exclude group: 'org.slf4j', module: 'log4j-over-slf4j'
+    exclude group: 'org.spark-project.spark', module: 'unused'
+//    resolutionStrategy.eachDependency{
+//             details ->
+//                if(details.requested.group.equalsIgnoreCase('org.codehaus.jackson')) {
+//                    if ( details.requested.name.equalsIgnoreCase('jackson-core-asl')){
+//                        details.useTarget group: "com.fasterxml.jackson.core",
+//                                name: "jackson-core", version: "2.10.0"
+//                        details.because("Prefer 2.10.0 to avoid CVE issue")
+//                    }
+//                    if ( details.requested.name.equalsIgnoreCase('jackson-mapper-asl')){
+//                        details.useTarget group: "com.fasterxml.jackson.core",
+//                                name: "jackson-databind", version: "2.10.0"
+//                        details.because("Prefer 2.10.0 to avoid CVE issue")
+//                    }
+//                }
+//                details.println("group--"+details.requested.group + "-name-" + details.requested
+//                        .name +" =version=" +  details.requested.version  )
+//        }
+    }
+
+//End - Fix CVE issue
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.8.0' //version required
+}
+
+scalaStyle {
+    configLocation = "project/scalastyle_config.xml"
+    includeTestSourceDirectory = true
+    source = "src/main/scala/com/siemens/plm/mindsphere"
+    testSource = "src/test/scala"
+}
+
+artifactory {
+    contextUrl = "https://captain.rtf.siemens.net/artifactory"
+    publish {
+        repository {
+            def snapshotsRepoKey = "mindsphere_rnd-dev-maven2"
+            def releasesRepoKey = "mindsphere_rnd-release-maven2"
+            repoKey = version.endsWith('SNAPSHOT') ? snapshotsRepoKey : releasesRepoKey
+            username = "$System.env.ARTIFACTORY_USERNAME"
+            password = "$System.env.ARTIFACTORY_PASSWORD"
+            maven = true
+        }
+        defaults {
+            publications('mavenJava')
+        }
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+dependencyCheck {
+    failBuildOnCVSS = 4
+    failOnError = true
+    format='ALL'
+}
